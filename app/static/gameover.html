@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Игра завершена</title>
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+    <div class="gameover">
+        <h1>Игра завершена!</h1>
+        <div id="stats">
+            <h2>Ваша статистика:</h2>
+            <p>Состояние: <span id="status">Победа</span></p>
+            <p>Убито врагов: <span id="killed_mobs">0</span></p>
+            <p>Сохраненные предметы: <span id="inventory">0</span></p>
+        </div>
+        <button onclick="location.href='/'">В главное меню</button>
+    </div>
+    <script>
+        const urlParams = new URLSearchParams(window.location.search);
+        document.getElementById('status').textContent =
+            urlParams.get('status') === 'win' ? 'Победа' : 'Поражение';
+        document.getElementById('killed_mobs').textContent =
+            urlParams.get('killed_mobs') || '0';
+        document.getElementById('inventory').textContent =
+            urlParams.get('inventory') || '0';
+    </script>
+</body>
+</html>

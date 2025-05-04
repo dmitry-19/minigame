@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Вход</title>
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+    <div class="auth-form">
+        <h2>Вход</h2>
+        <input type="text" id="username" placeholder="Имя пользователя">
+        <input type="password" id="password" placeholder="Пароль">
+        <button onclick="login()">Войти</button>
+        <p>Нет аккаунта? <a href="/static/register.html">Зарегистрироваться</a></p>
+    </div>
+
+    <script>
+        async function login() {
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+
+            try {
+                const response = await fetch('/auth/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: new URLSearchParams({
+                        'username': username,
+                        'password': password
+                    })
+                });
+
+                if(response.ok) {
+                    const data = await response.json();
+                    localStorage.setItem('token', data.access_token);
+                    window.location.href = '/static/game.html';
+                } else {
+                    const error = await response.json();
+                    alert(`Ошибка входа: ${error.detail}`);
+                }
+            } catch (error) {
+                console.error('Ошибка:', error);
+                alert('Сервер недоступен');
+            }
+        }
+
+        // Проверка авторизации при загрузке
+        if(localStorage.getItem('token')) {
+            window.location.href = '/static/game.html';
+        }
+    </script>
+</body>
+</html>

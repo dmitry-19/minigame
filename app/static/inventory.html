@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Inventory</title>
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+    <h1>Inventory</h1>
+    <div class="status-block">
+        <h3>Потенциал</h3>
+        <p>Уничтожено: <span id="killed_mobs">0</span></p>
+        <p>Атака увеличена: <span id="bonus_attack">0</span></p>
+        <p>Здоровье увеличено: <span id="bonus_health">0</span></p>
+        <p>Следующий уровень: <span id="next_level">2</span></p>
+    </div>
+
+    <div id="items" class="inventory-list"></div>
+
+    <div class="controls">
+        <button onclick="window.location.href='/static/game.html'">Назад в игру</button>
+        <button onclick="deleteAccount()" style="background: #ff4444;">Удалить аккаунт</button>
+    </div>
+
+    <script>
+        async function loadInventory() {
+            try {
+                const token = localStorage.getItem('token');
+
+                // Загрузка предметов
+                const res = await fetch('/inventory', {
+                    headers: {'Authorization': `Bearer ${token}`}
+                });
+                const {items} = await res.json();
+
+
+
+                // Отображение предметов
+                const container = document.getElementById('items');
+                container.innerHTML = '';
+                items.forEach(item => {
+                    const div = document.createElement('div');
+                    div.className = 'inventory-item';
+                    div.textContent = `${item.name} x${item.quantity}`;  // Только текст
+                    container.appendChild(div);
+                });
+
+                const upgrades = await fetch('/game/upgrades', {
+                    headers: {'Authorization': `Bearer ${token}`}
+                });
+                const stats = await upgrades.json();
+
+                // Обновление статистики
+                document.getElementById('killed_mobs').textContent = stats.killed_mobs;
+                document.getElementById('bonus_attack').textContent = stats.bonus_attack;
+                document.getElementById('bonus_health').textContent = stats.bonus_health;
+                document.getElementById('next_level').textContent = stats.next_level;
+            } catch (error) {
+                console.error('Ошибка загрузки:', error);
+            }
+        }
+
+        async function deleteAccount() {
+            if (!confirm("Удалить аккаунт навсегда?")) return;
+
+            try {
+                const token = localStorage.getItem('token');
+                await fetch('/auth/delete-account', {
+                    method: 'DELETE',
+                    headers: {'Authorization': `Bearer ${token}`}
+                });
+                localStorage.removeItem('token');
+                window.location.href = '/';
+            } catch (error) {
+                alert('Ошибка: ' + error.message);
+            }
+        }
+
+        loadInventory();
+    </script>
+</body>
+</html>

@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Rogue-like Game</title>
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+    <div class="game-container">
+        <canvas id="gameCanvas"></canvas>
+    </div>
+
+    <div class="status-bar">
+        Health: <span id="health">{{ gameState.player.health }}</span>
+        <button onclick="showInventory()">Inventory</button>
+        <button onclick="logout()">Logout</button>
+    </div>
+
+    <div class="controls">
+        <button onclick="useWallbreaker()">Использовать стенолом</button>
+        <button onclick="surrender()">Сдаться</button>
+        <button onclick="move('up')">↑</button>
+        <button onclick="move('down')">↓</button>
+        <button onclick="move('left')">←</button>
+        <button onclick="move('right')">→</button>
+    </div>
+
+    <script>
+        const TILE_SIZE = 32;
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        let gameState = {};
+
+        // Предзагрузка изображений
+        const images = {
+            wall: new Image(),
+            floor: new Image(),
+            exit: new Image(),
+            player: new Image(),
+            mob: new Image()
+        };
+
+        // Загружаем изображения
+        images.wall.src = '/static/images/wall.png';
+        images.floor.src = '/static/images/floor.png';
+        images.exit.src = '/static/images/exit.png';
+        images.player.src = '/static/images/player.png';
+        images.mob.src = '/static/images/mob.png';
+
+        async function initGame() {
+            const token = localStorage.getItem('token');
+            if (!token) {
+                window.location.href = '/static/login.html';
+                return;
+            }
+
+            await checkUserState();
+            await loadGameState();
+            drawGame();
+        }
+
+        async function checkUserState() {
+            const response = await fetch('/game/state', {
+                headers: {'Authorization': `Bearer ${localStorage.getItem('token')}`}
+            });
+
+            if (response.status === 401) {
+                logout();
+                return;
+            }
+
+            const state = await response.json();
+            if (!state.player.is_active) {
+                await fetch('/game/reset', {
+                    method: 'POST',
+                    headers: {'Authorization': `Bearer ${localStorage.getItem('token')}`}
+                });
+            }
+        }
+
+        async function loadGameState() {
+            try {
+                const response = await fetch('/game/state', {
+                    headers: {'Authorization': `Bearer ${localStorage.getItem('token')}`}
+                });
+
+                gameState = await response.json();
+                canvas.width = 20 * TILE_SIZE;
+                canvas.height = 20 * TILE_SIZE;
+                document.getElementById('health').textContent = gameState.player.health;
+            } catch (error) {
+                console.error('Error loading game state:', error);
+            }
+        }
+
+        function drawGame() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Отрисовка тайлов
+            gameState.tiles.forEach(tile => {
+                let img;
+                if (tile.type === 'exit') img = images.exit;
+                else img = images[tile.type]; // Исправлено: tile.type вместо tile.tile_type
+
+                ctx.drawImage(
+                    img,
+                    tile.x * TILE_SIZE,
+                    tile.y * TILE_SIZE,
+                    TILE_SIZE,
+                    TILE_SIZE
+                );
+            });
+
+            // Отрисовка мобов
+            gameState.mobs.forEach(mob => {
+                ctx.drawImage(
+                    images.mob,
+                    mob.x * TILE_SIZE,
+                    mob.y * TILE_SIZE,
+                    TILE_SIZE,
+                    TILE_SIZE
+                );
+            });
+
+            // Отрисовка игрока
+            ctx.drawImage(
+                images.player,
+                gameState.player.x * TILE_SIZE,
+                gameState.player.y * TILE_SIZE,
+                TILE_SIZE,
+                TILE_SIZE
+            );
+        }
+
+        async function move(direction) {
+            try {
+                const token = localStorage.getItem('token');
+                const response = await fetch(`/game/move`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ direction })
+                });
+
+                const result = await response.json();
+
+                if (result.game_over) {
+                    const params = new URLSearchParams({
+                        status: result.status,
+                        killed_mobs: result.killed_mobs,
+                        inventory: result.inventory
+                    });
+                    window.location.href = `/static/gameover.html?${params}`;
+                    return;
+                }
+
+                // Обновляем позиции мобов из ответа сервера
+                if (result.mobs) {
+                    gameState.mobs = result.mobs;
+                }
+
+                await loadGameState();
+                drawGame();
+
+            } catch (error) {
+                alert(error.message);
+                console.error('Ошибка:', error);
+            }
+        }
+
+        function showInventory() {
+            window.location.href = '/static/inventory.html';
+        }
+
+        function logout() {
+            localStorage.removeItem('token');
+            window.location.href = '/static/login.html';
+        }
+
+
+        async function useWallbreaker() {
+            try {
+                const token = localStorage.getItem('token');
+                const response = await fetch('/game/use-wallbreaker', {
+                    method: 'PUT',
+                    headers: {'Authorization': `Bearer ${token}`}
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.detail || "Ошибка");
+                }
+
+                const result = await response.json();
+                alert(result.message);
+                await loadGameState();
+                drawGame();
+            } catch (error) {
+                alert(error.message);  // Показываем сообщение об ошибке
+                console.error('Ошибка:', error);
+            }
+        }
+
+
+        async function surrender() {
+            try {
+                const token = localStorage.getItem('token');
+                const response = await fetch('/game/surrender', {
+                    method: 'PATCH',
+                    headers: {'Authorization': `Bearer ${token}`}
+                });
+                const result = await response.json();
+
+                const params = new URLSearchParams({
+                    status: result.status,
+                    killed_mobs: result.killed_mobs,
+                    inventory: result.inventory
+                });
+                window.location.href = `/static/gameover.html?${params}`;
+            } catch (error) {
+                alert('Ошибка: ' + error.message);
+            }
+        }
+
+        initGame();
+    </script>
+</body>
+</html>
